@@ -1,0 +1,56 @@
+{
+  "repository": "https://github.com/giorgoschionas/SAiFE_gym",
+  "commit": "138c5b39a2e7066df9e6e79b297230221f597fb6",
+  "files": {
+    "AMMEnvironment.py": {
+      "source": "SAiFE_gym/gym/AMMEnvironment.py",
+      "sha256": "8d1e82bd4226e2e0f9acb7c32bc662c2b4a185447634ce5c5dcb7ced210d8995"
+    },
+    "ModelDynamics.py": {
+      "source": "SAiFE_gym/gym/ModelDynamics.py",
+      "sha256": "d9fce5fe634db0b493df119b160321e814c40f22e2fa98b5213a59f70f21ffde"
+    },
+    "simulation_core.py": {
+      "source": "SAiFE_gym/gym/simulation_core.py",
+      "sha256": "74bc3ab482ccd684461af1e128f5e4fc62442b4aa33fd753f8bbb0d720ee9ff1"
+    },
+    "index_names.py": {
+      "source": "SAiFE_gym/gym/index_names.py",
+      "sha256": "46f5ed6f0df3fbdfe432161ded7b47f939b7c8105ef747b35faa5966d75392c0"
+    },
+    "helpers.py": {
+      "source": "SAiFE_gym/gym/helpers/AMM_utils.py",
+      "sha256": "f6a2c702af21a36010cdfa26db3caf5de04e912d49f8a6c0bccebcea761cbdb8"
+    },
+    "processes.py": {
+      "source": "SAiFE_gym/stochastic_processes/StochasticProcessModel.py",
+      "sha256": "4e275a61d2a3e7d378cfed0733e08d6b90feaf6758e189a245a135b94632e783"
+    },
+    "arrivals.py": {
+      "source": "SAiFE_gym/stochastic_processes/arrival_models.py",
+      "sha256": "f0741dcd1b8a20a8f2f3642f0e4cd5fc012bb6442b11ebe78176684254dd11b5"
+    },
+    "midprice.py": {
+      "source": "SAiFE_gym/stochastic_processes/midprice_models.py",
+      "sha256": "3c49241adba638abdbc8dca2b24e72608c0f43bb615e739653d09da6e7bd9fcd"
+    },
+    "impact.py": {
+      "source": "SAiFE_gym/stochastic_processes/price_impact_models.py",
+      "sha256": "929c6c5510df2afcf5e06ded23d1bbff5513cb92755976acebc87efc6f9b7cff"
+    },
+    "fees.py": {
+      "source": "SAiFE_gym/stochastic_processes/fee_accounting_models.py",
+      "sha256": "9d1c10c84a22dcc7e32fe794b8e8c17b3b3b8fdb2b905410e95f0d1c4fe87477"
+    },
+    "rewards.py": {
+      "source": "SAiFE_gym/rewards/RewardFunctions.py",
+      "sha256": "93bd984a5ab087e18431d0adb2ea1c360a070fa481e70ea7a2af9961f9650825"
+    }
+  },
+  "tests": {
+    "tests/test_market_mechanics.py": {
+      "source": "tests/test_price_impact_models.py",
+      "sha256": "e3d2bd0397ca761e61b9c9373dce0760ef8af6bd261d85e64d947a547fcc2559"
+    }
+  }
+}
