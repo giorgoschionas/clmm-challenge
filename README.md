@@ -27,6 +27,10 @@ Submit one Python file, at most 64 KiB, defining `Agent.__init__(self, config)`
 and `Agent.get_action(self, state)`. The starter uses only NumPy. Python standard
 library imports allowed by the hosted sandbox are also available; training
 libraries and external data files are not part of the challenge runtime.
+The starter adapts SAiFE_gym's `PeriodicRebalanceAgent`: deploy a symmetric
+±2-tick range at step 0, then rebalance every 5 steps and hold in between.
+Edit `self.width` and `self.rebalance_every` to tune it. The submission class is
+named `Agent` and reads public settings from `config`, with no SAiFE_gym imports.
 For compatibility, a differently named `...Agent` must subclass the small
 `from concentrator import Agent` interface supplied by the evaluator.
 
