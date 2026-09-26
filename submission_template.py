@@ -2,14 +2,12 @@ import numpy as np
 
 
 class Agent:
-    """SAiFE_gym PeriodicRebalanceAgent adapted to the CLMM config interface."""
-
     def __init__(self, config):
         self.num_trajectories = config.num_trajectories
         self.step_size = config.step_size
         # Tune these strategy parameters; width must stay within [1, config.tau].
-        self.rebalance_every = 5
-        self.width = 2
+        self.rebalance_every = 100
+        self.width = 50
         assert self.rebalance_every >= 1
         assert 1 <= self.width <= config.tau
 
