@@ -90,12 +90,34 @@ is better. **Raw PnL** is final wealth minus initial wealth and is displayed
 separately. Fees and costs already enter wealth; do not deduct them twice.
 The best valid submission per participant is ranked on the hosted leaderboard.
 
+Hosted live scoring uses at least **3 private seeds (300 paths)**. After closing,
+each participant's best verified live submission is automatically selected for
+at least **10 separate unseen final seeds (1,000 paths)**. Each seed is run twice
+with fresh agents to verify identical actions and outcomes; the second run does
+not add paths or weight to the score. Final results are published together.
+Strategies that fail final evaluation are not ranked; no alternate submission
+is tried. Infrastructure failures are retried before publication. Equal scores
+use earliest submission time, then submission ID.
+
+Randomized strategies must be reproducible. The public `config.policy_seed` is
+**0**, independent of every private market seed. Python's global `random` and
+NumPy's global RNG are seeded before source execution. Seed independent RNGs
+explicitly, e.g. `self.rng = np.random.default_rng(config.policy_seed)`. Avoid
+unseeded generators, entropy, and wall-clock time in decisions. Local practice
+reloads source and resets policy randomness for each market seed, including
+module-level initialization.
+
+Hosted responses contain aggregate results and safe error categories. Agent
+prints and exception details remain private to organizers because they could
+reveal repeatable market paths. Debug with the local practice evaluator.
+
 ## Backend connection
 
 The backend routes `challengeSlug: "clmm"` to engine `clmm-v1`, imports this
 package via `CLMM_ENV_PATH=../clmm-challenge`, and runs the agent in its existing
-sandbox. Hosted evaluation requires `CLMM_SEEDS` in the process environment;
-it never falls back to public practice seeds. CLMM is seeded upcoming with no
+sandbox. Hosted evaluation requires frozen live and final seed suites, registered
+using the backend operator CLI; it never falls back to public practice seeds.
+CLMM is seeded upcoming with no
 dates. Open it deliberately using the backend's CLMM-specific status/schedule
 settings. Existing Concentrator submissions continue using their old engine.
 

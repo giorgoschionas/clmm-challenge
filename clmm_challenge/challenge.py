@@ -23,6 +23,7 @@ OBSERVATION_KEYS = (
 
 @dataclass(frozen=True)
 class ScenarioConfig:
+    policy_seed: int = 0  # Public policy RNG seed; independent of private market seeds.
     terminal_time: float = 1.0
     n_steps: int = 1000
     num_trajectories: int = 100

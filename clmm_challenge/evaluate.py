@@ -4,6 +4,7 @@ import argparse
 import ast
 import csv
 from pathlib import Path
+import random
 import sys
 import types
 
@@ -24,7 +25,7 @@ class BaseAgent(abc.ABC):
         return np.array([self.get_action(state) for _ in range(n_samples)]).mean(axis=0)
 
 
-def load_agent(path: Path):
+def load_agent(path: Path, policy_seed: int = 0):
     if path.stat().st_size > MAX_CODE_BYTES:
         raise ValueError("submission exceeds 65536 bytes")
     source = path.read_text(encoding="utf-8")
@@ -37,11 +38,14 @@ def load_agent(path: Path):
     shim.Agent = BaseAgent
     sys.modules["concentrator"] = shim
     namespace = {"__name__": "submission", "__file__": str(path)}
+    random.seed(policy_seed)
+    np.random.seed(policy_seed)
     exec(compile(source, str(path), "exec"), namespace)
     node, _ = _select_entry_class(ast.parse(source))
     agent = namespace[node.name]
     if not isinstance(agent, type) or (node.name != "Agent" and not issubclass(agent, BaseAgent)):
         raise ValueError("a renamed Agent must subclass concentrator.Agent")
+    agent._practice_source_path = path
     return agent
 
 
@@ -64,8 +68,12 @@ def run_episode(env, agent):
 def evaluate_agent(agent_class, config, seeds):
     scores, pnls = [], []
     for seed in seeds:
+        random.seed(config.policy_seed)
+        np.random.seed(config.policy_seed)
+        source_path = getattr(agent_class, "_practice_source_path", None)
+        current_class = load_agent(source_path, config.policy_seed) if source_path else agent_class
         env = create_environment(config, seed)
-        score, pnl = run_episode(env, agent_class(config.submission_namespace()))
+        score, pnl = run_episode(env, current_class(config.submission_namespace()))
         scores.append(score)
         pnls.append(pnl)
     scores, pnls = np.concatenate(scores), np.concatenate(pnls)
