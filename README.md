@@ -35,12 +35,21 @@ For compatibility, a differently named `...Agent` must subclass the small
 `from concentrator import Agent` interface supplied by the evaluator.
 
 `config` is a detached namespace of public scalar scenario parameters. It never
-contains the live environment, seed, or RNG. Return a finite numeric array of
-shape `(num_trajectories, 3)`: `[lower_offset, upper_offset, hold_flag]`.
+contains the live environment, private market seed, or simulation RNG. It includes
+the public `policy_seed` used for reproducible policy randomness.
+
+Return a finite numeric array of shape `(num_trajectories, 3)`:
+`[lower_offset, upper_offset, hold_flag]`.
 The first two entries are tick offsets from the current pool tick, rounded and
 clipped to `[-tau, tau-1]` and `[-tau+1, tau]`; invalid ordering is corrected by
 the engine. A positive hold flag keeps the existing position. A nonpositive
 flag deploys/rebalances. Decisions occur every step; there is no stride wrapper.
+
+Each path can hold at most one LP position. Deployment invests all available
+wealth; rebalancing collects accrued fees and reinvests all remaining wealth
+after costs. Holding before the first deployment keeps the initial capital in
+token1 cash. There is no separate withdrawal-to-cash action: once deployed,
+holding keeps the existing position and rebalancing replaces it.
 
 The observation contains copied arrays of shape `(num_trajectories,)`:
 
@@ -117,9 +126,8 @@ The backend routes `challengeSlug: "clmm"` to engine `clmm-v1`, imports this
 package via `CLMM_ENV_PATH=../clmm-challenge`, and runs the agent in its existing
 sandbox. Hosted evaluation requires frozen live and final seed suites, registered
 using the backend operator CLI; it never falls back to public practice seeds.
-CLMM is seeded upcoming with no
-dates. Open it deliberately using the backend's CLMM-specific status/schedule
-settings. Existing Concentrator submissions continue using their old engine.
+CLMM is seeded upcoming with no dates. Open it deliberately using the backend's
+CLMM-specific status/schedule settings.
 
 ## Maintaining the extraction
 

@@ -13,7 +13,7 @@ def main():
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
     names = ["README.md", "LICENSE", "THIRD_PARTY_NOTICES.md", "UPSTREAM.json",
-             "pyproject.toml", "requirements.txt", "submission_template.py"]
+             "pyproject.toml", "MANIFEST.in", "requirements.txt", "submission_template.py"]
     sources = [ROOT / name for name in names]
     sources += sorted((ROOT / "clmm_challenge").glob("*.py"))
     sources += sorted((ROOT / "tests").glob("*.py"))

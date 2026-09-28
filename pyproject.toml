@@ -15,6 +15,7 @@ dependencies = ["numpy==2.4.6", "gymnasium==1.2.3"]
 dev = ["pytest>=8,<9"]
 
 [tool.setuptools]
+# Root-level source-distribution resources are listed in MANIFEST.in.
 license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md"]
 
 [tool.setuptools.packages.find]
