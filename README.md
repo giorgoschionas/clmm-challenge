@@ -1,25 +1,26 @@
 # CLMM Challenge
 
-A standalone liquidity-provision competition extracted from SAiFE_gym. Only
-NumPy and Gymnasium are required at runtime. There is no dependency on a sibling
-SAiFE_gym checkout, PyTorch, Stable-Baselines3, pandas, or training wrappers.
+Build a Python strategy that provides concentrated liquidity, earns trading
+fees, and manages inventory risk and rebalancing costs. Evaluate it locally
+against public practice seeds and compare it with reference policies.
 
 ## Getting started
 
+Requires Python 3.11 or newer. Installation includes NumPy and Gymnasium.
+
 ```bash
 python3 -m venv .venv
-.venv/bin/python -m pip install -e '.[dev]'
+.venv/bin/python -m pip install -e .
 cp submission_template.py my_agent.py
 .venv/bin/python -m clmm_challenge.evaluate --agent my_agent.py
-.venv/bin/python -m pytest
 ```
 
 Practice runs 100 paths for each public seed (42, 314, 2718). Use
 `--submissions-dir submissions` to compare files, `--seeds 42` for a shorter run,
 and `--no-baselines` to omit the reference policies. CSV output defaults to
-`results/leaderboard.csv`. Local evaluation executes trusted source files in
-the grading process; it is not an untrusted-code sandbox. Hosted evaluation
-uses the backend's separate agent process and nsjail in production.
+`results/leaderboard.csv`. Local evaluation executes strategy files on your
+machine, so run only code you trust. Hosted submissions run in an isolated
+sandbox.
 
 ## Agent interface
 
@@ -30,9 +31,7 @@ libraries and external data files are not part of the challenge runtime.
 The starter uses a periodic rebalance strategy: deploy a symmetric
 ±50-tick range at step 0, then rebalance every 100 steps and hold in between.
 Edit `self.width` and `self.rebalance_every` to tune it. The submission class is
-named `Agent` and reads public settings from `config`, with no SAiFE_gym imports.
-For compatibility, a differently named `...Agent` must subclass the small
-`from concentrator import Agent` interface supplied by the evaluator.
+named `Agent` and reads public settings from `config`.
 
 `config` is a detached namespace of public scalar scenario parameters. It never
 contains the live environment, private market seed, or simulation RNG. It includes
@@ -43,7 +42,7 @@ Return a finite numeric array of shape `(num_trajectories, 3)`:
 The first two entries are tick offsets from the current pool tick, rounded and
 clipped to `[-tau, tau-1]` and `[-tau+1, tau]`; invalid ordering is corrected by
 the engine. A positive hold flag keeps the existing position. A nonpositive
-flag deploys/rebalances. Decisions occur every step; there is no stride wrapper.
+flag deploys/rebalances. Your agent makes a decision every simulation step.
 
 Each path can hold at most one LP position. Deployment invests all available
 wealth; rebalancing collects accrued fees and reinvests all remaining wealth
@@ -69,8 +68,7 @@ The observation contains copied arrays of shape `(num_trajectories,)`:
 
 ## Fixed v1 market and scoring
 
-The factory `clmm_challenge.challenge.create_environment` is shared by local
-practice and the backend. `ScenarioConfig` is the authoritative configuration.
+Local practice and hosted evaluation use the following fixed market parameters.
 
 | Parameter | Value |
 |---|---|
@@ -87,7 +85,7 @@ practice and the backend. `ScenarioConfig` is the authoritative configuration.
 | Gas / additional rebalance swap fee | 2 / 0 |
 | Inventory penalty | Coefficient 0.4, exponent 2, terminal penalty 0 |
 
-Preserves upstream's Euler midprice update, exact Poisson probability
+The simulator uses an Euler midprice update, exact Poisson probability
 `1-exp(-intensity*dt)` with at most one arrival per side per step, directional
 liquidity-depth impact with stochastic tick rounding, and fee allocation.
 The first deployment is free; subsequent rebalances pay gas. Never deploying
@@ -116,35 +114,15 @@ unseeded generators, entropy, and wall-clock time in decisions. Local practice
 reloads source and resets policy randomness for each market seed, including
 module-level initialization.
 
-Hosted responses contain aggregate results and safe error categories. Agent
-prints and exception details remain private to organizers because they could
-reveal repeatable market paths. Debug with the local practice evaluator.
+Hosted feedback includes aggregate scores and error categories. Agent prints
+and exception details are not returned; use the local practice evaluator to
+debug your strategy.
 
-## Backend connection
+## License and provenance
 
-The backend routes `challengeSlug: "clmm"` to engine `clmm-v1`, imports this
-package via `CLMM_ENV_PATH=../clmm-challenge`, and runs the agent in its existing
-sandbox. Hosted evaluation requires frozen live and final seed suites, registered
-using the backend operator CLI; it never falls back to public practice seeds.
-CLMM is seeded upcoming with no dates. Open it deliberately using the backend's
-CLMM-specific status/schedule settings.
-
-## Maintaining the extraction
-
-`UPSTREAM.json` records upstream commit and source-file hashes. The engine is
-extracted from commit `138c5b39a2e7066df9e6e79b297230221f597fb6`.
-Imports were renamed; alternative concrete models, taker-order execution,
-unused helpers, default model construction, and training integrations were
-removed. The retained numerical algorithms were not rewritten. Required bases
-and RNG/reset helpers remain, even when their interfaces support more than
-this single scenario. `simulation_core.py` retains shared state transitions.
-
-Run optional upstream parity tests with
-`SAIFE_UPSTREAM_PATH=/path/to/SAiFE_gym .venv/bin/python -m pytest`.
-They compare complete states, rewards, arrivals, and termination for identical
-seeds and actions. An upstream checkout is only a development oracle, never a
-runtime dependency. Import new upstream changes deliberately and rerun parity;
-do not silently change an active competition's rules.
+This simulator is derived from SAiFE_gym. [UPSTREAM.json](UPSTREAM.json) records
+the upstream revision and source-file hashes.
 
 Original contributions retain MIT terms; inherited mbt_gym portions retain
-BSD-3-Clause terms. See `LICENSE` and `THIRD_PARTY_NOTICES.md`.
+BSD-3-Clause terms. See [LICENSE](LICENSE) and
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
