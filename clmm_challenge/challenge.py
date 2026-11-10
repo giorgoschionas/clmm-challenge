@@ -10,7 +10,7 @@ from .arrivals import LiquidityKernelArrivalModel
 from .midprice import GeometricBrownianMotionMidpriceModel
 from .impact import LiquidityDepthUniswapV3PriceImpact
 from .fees import UniswapV3FeeAccounting
-from .rewards import RunningInventoryPenalty
+from .rewards import PnL
 
 ENGINE_ID = "clmm-v1"
 PRACTICE_SEEDS = (42, 314, 2718)
@@ -28,6 +28,7 @@ class ScenarioConfig:
     n_steps: int = 1000
     num_trajectories: int = 100
     initial_wealth: float = 1000.0
+    background_liquidity: float = 30_000.0
     initial_price: float = 100.0
     tau: int = 50
     num_ticks: int = 7000
@@ -42,14 +43,11 @@ class ScenarioConfig:
     kernel_window: int = 10
     liquidity_scale: float = 1e6
     trade_notional: float = 250.0
-    depth_window: int = 10
+    depth_window: int = 15
     min_depth: float = 1e-12
     fee_tier: float = 0.003
     gas_cost: float = 2.0
     swap_fee_rate: float = 0.0
-    inventory_phi: float = 0.4
-    inventory_exponent: float = 2.0
-    terminal_inventory_penalty: float = 0.0
 
     @property
     def step_size(self):
@@ -88,12 +86,9 @@ def create_environment(config: ScenarioConfig, seed: int) -> AMMEnvironment:
     )
     return AMMEnvironment(
         terminal_time=c.terminal_time, n_steps=c.n_steps, initial_wealth=c.initial_wealth,
+        background_liquidity=c.background_liquidity,
         num_trajectories=c.num_trajectories, model_dynamics=dynamics, seed=seed,
-        reward_function=RunningInventoryPenalty(
-            per_step_inventory_aversion=c.inventory_phi,
-            terminal_inventory_aversion=c.terminal_inventory_penalty,
-            inventory_exponent=c.inventory_exponent,
-        ),
+        reward_function=PnL(),
     )
 
 

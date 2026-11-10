@@ -52,5 +52,39 @@
       "source": "tests/test_price_impact_models.py",
       "sha256": "e3d2bd0397ca761e61b9c9373dce0760ef8af6bd261d85e64d947a547fcc2559"
     }
-  }
+  },
+  "updates": [
+    {
+      "commit": "2d96ddbcba98e818c39dfacd30713d54fe4bbf63",
+      "description": "Adopt the robust LP trainer nominal market defaults: uniform background liquidity 30000 and impact depth window 15. Extract configurable background liquidity and PnL reward. Challenge scoring uses plain PnL; the per-step Agent interface is retained. Refresh sampled price impact to consume cumulative directional interval capacity.",
+      "files": {
+        "challenge.py": {
+          "source": "experiments/train_robust_lp_agent.py",
+          "sha256": "777f84a6127ac64929a800501564913ed5119b788025c095d9d2242b9cf1997e"
+        },
+        "AMMEnvironment.py": {
+          "source": "SAiFE_gym/gym/AMMEnvironment.py",
+          "sha256": "3b2cc24ab9937a4b7aabba71fbed2c060e76b41b72e1fb738d0274139af0eead"
+        },
+        "simulation_core.py": {
+          "source": "SAiFE_gym/gym/simulation_core.py",
+          "sha256": "438ad61dfc6f1f0d837f12ab88e73b9963d189bd510fe96d44153e0f51a3a932"
+        },
+        "rewards.py": {
+          "source": "SAiFE_gym/rewards/RewardFunctions.py",
+          "sha256": "4262f57379a08ae58e1c3c480f07fc0be8eb745c52670a9c8a6989c6cd434ae9"
+        },
+        "impact.py": {
+          "source": "SAiFE_gym/stochastic_processes/price_impact_models.py",
+          "sha256": "0113d5a445a5e2f05399db51b519cd18c9243d68588c062e0fa0d39c5437df30"
+        }
+      },
+      "tests": {
+        "tests/test_market_mechanics.py": {
+          "source": "tests/test_price_impact_models.py",
+          "sha256": "84df9ed6568f659ac1ba83f26cc867be5bbe33e36f9c81f06bba776ec60dca09"
+        }
+      }
+    }
+  ]
 }

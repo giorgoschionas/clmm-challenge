@@ -79,7 +79,6 @@ def evaluate_agent(agent_class, config, seeds):
     scores, pnls = np.concatenate(scores), np.concatenate(pnls)
     return {"score": float(scores.mean()), "mean_pnl": float(pnls.mean()),
             "pnl_pct": float(100 * pnls.mean() / config.initial_wealth),
-            "mean_inventory_penalty": float((pnls - scores).mean()),
             "num_paths": len(scores)}
 
 
@@ -108,10 +107,10 @@ def main(argv=None):
             rows.append({"name": agent.__name__, "kind": "baseline",
                          **evaluate_agent(agent, config, args.seeds)})
     rows.sort(key=lambda row: row["score"], reverse=True)
-    print("Rank | Agent | Inventory-adjusted score | Raw PnL | Inventory penalty")
+    print("Rank | Agent | Mean PnL (score) | PnL (%)")
     for rank, row in enumerate(rows, 1):
         row["rank"] = rank
-        print(f"{rank} | {row['name']} | {row['score']:+.4f} | {row['mean_pnl']:+.4f} | {row['mean_inventory_penalty']:.4f}")
+        print(f"{rank} | {row['name']} | {row['score']:+.4f} | {row['pnl_pct']:+.4f}%")
     if rows:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         with args.output.open("w", newline="") as handle:

@@ -1,4 +1,5 @@
-"""Optional extraction audit against the recorded upstream checkout."""
+"""Optional mechanics and nominal-configuration audit against upstream."""
+import ast
 import importlib
 import os
 from pathlib import Path
@@ -23,7 +24,7 @@ def test_full_state_and_reward_parity(monkeypatch, n, seed):
         "GeometricBrownianMotionMidpriceModel": "stochastic_processes.midprice_models",
         "LiquidityDepthUniswapV3PriceImpact": "stochastic_processes.price_impact_models",
         "UniswapV3FeeAccounting": "stochastic_processes.fee_accounting_models",
-        "RunningInventoryPenalty": "rewards.RewardFunctions",
+        "PnL": "rewards.RewardFunctions",
     }
     config = challenge.ScenarioConfig(num_trajectories=n, n_steps=30, terminal_time=0.03, num_ticks=200)
     extracted = challenge.create_environment(config, seed)
@@ -33,6 +34,9 @@ def test_full_state_and_reward_parity(monkeypatch, n, seed):
         original = challenge.create_environment(config, seed)
     left, _ = extracted.reset()
     right, _ = original.reset()
+    assert left.keys() == right.keys()
+    for key in left:
+        np.testing.assert_allclose(left[key], right[key], rtol=0, atol=1e-11, err_msg=key)
     rng = np.random.default_rng(123)
     for step in range(config.n_steps):
         action = np.column_stack([rng.integers(-50, 0, n), rng.integers(1, 51, n),
@@ -48,3 +52,47 @@ def test_full_state_and_reward_parity(monkeypatch, n, seed):
         np.testing.assert_array_equal(extracted.model_dynamics.last_arrivals,
                                       original.model_dynamics.last_arrivals)
     assert a[2].all()
+
+
+def test_nominal_market_defaults_match_upstream_trainer():
+    root = os.environ.get("SAIFE_UPSTREAM_PATH")
+    if not root:
+        pytest.skip("set SAIFE_UPSTREAM_PATH to audit against upstream")
+    root = Path(root)
+    # Read the CLI defaults without importing PPO, Torch, or plotting libraries
+    # into the standalone package's deliberately small runtime.
+    helpers = ast.parse((root / "experiments/helpers.py").read_text())
+    constants = {
+        node.targets[0].id: node.value for node in helpers.body
+        if isinstance(node, ast.Assign) and isinstance(node.targets[0], ast.Name)
+    }
+    trainer = ast.parse((root / "experiments/train_robust_lp_agent.py").read_text())
+    parser = next(node for node in trainer.body
+                  if isinstance(node, ast.FunctionDef) and node.name == "parse_args")
+    arguments = {
+        ast.literal_eval(node.args[0]): next(kw.value for kw in node.keywords if kw.arg == "default")
+        for node in ast.walk(parser)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "add_argument" and node.args
+        and any(kw.arg == "default" for kw in node.keywords)
+    }
+    c = challenge.ScenarioConfig()
+    for field, flag in {
+        "terminal_time": "--terminal-time", "n_steps": "--n-steps",
+        "num_trajectories": "--num-trajectories", "initial_wealth": "--initial-wealth",
+        "background_liquidity": "--background-liquidity", "tau": "--tau",
+        "volatility": "--nominal-sigma", "arrival_rate": "--nominal-arrival-rate",
+        "liquidity_coefficient": "--arrival-alpha2", "arbitrage_coefficient": "--alpha3",
+        "kernel_beta": "--kernel-beta", "kernel_window": "--kernel-window",
+        "liquidity_scale": "--liquidity-scale", "trade_notional": "--trade-size-notional",
+        "depth_window": "--price-impact-depth-window", "min_depth": "--price-impact-min-depth",
+        "gas_cost": "--nominal-gas-cost",
+    }.items():
+        default = arguments[flag]
+        if isinstance(default, ast.Name):
+            default = constants[default.id]
+        assert getattr(c, field) == ast.literal_eval(default), field
+
+    for field, name in {"terminal_time": "TERMINAL_TIME", "initial_price": "INITIAL_PRICE",
+                        "fee_tier": "FEE_TIER", "num_ticks": "NUM_TICKS"}.items():
+        assert getattr(c, field) == ast.literal_eval(constants[name]), field

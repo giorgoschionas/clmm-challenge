@@ -14,17 +14,51 @@ def config():
     return ScenarioConfig(num_trajectories=3, n_steps=20, terminal_time=0.02, num_ticks=200)
 
 
-def test_cash_and_inventory_formula(config):
-    assert evaluate_agent(CashAgent, config, [42, 43])["score"] == 0
-    env = create_environment(config, 42)
+@pytest.mark.parametrize("n", [1, 3])
+def test_cash_and_pnl_reward(config, n):
+    c = replace(config, num_trajectories=n)
+    cash = evaluate_agent(CashAgent, c, [42, 43])
+    assert cash["score"] == cash["mean_pnl"] == cash["pnl_pct"] == 0
+    env = create_environment(c, 42)
     state, _ = env.reset()
-    penalty, score = np.zeros(3), np.zeros(3)
-    agent = DeployOnceAgent(config.submission_namespace())
-    for _ in range(config.n_steps):
-        state, reward, *_ = env.step(agent.get_action(official_observation(state, env)))
-        penalty += config.inventory_phi * config.step_size * state["lp_token0_amount"] ** 2
+    score = np.zeros(n)
+    saw_inventory = False
+    for step in range(c.n_steps):
+        previous_wealth = state["portfolio_value"].copy()
+        # Exercise deployment, holds, fees, and gas-paying rebalances.
+        action = np.tile([-50, 50, -1 if step % 5 == 0 else 1], (n, 1))
+        state, reward, *_ = env.step(action)
+        saw_inventory |= np.any(state["lp_token0_amount"] > 0)
+        np.testing.assert_allclose(reward, state["portfolio_value"] - previous_wealth, atol=1e-10)
         score += reward
-    np.testing.assert_allclose(score, state["portfolio_value"] - config.initial_wealth - penalty, atol=1e-10)
+    assert saw_inventory
+    np.testing.assert_allclose(score, state["portfolio_value"] - c.initial_wealth, atol=1e-10)
+
+
+@pytest.mark.parametrize("n", [1, 3])
+@pytest.mark.parametrize("background", [0.0, 12_345.0, 30_000.0, 100_000.0])
+def test_background_liquidity_and_cash_restored_on_reset(config, n, background):
+    c = replace(config, num_trajectories=n, background_liquidity=background,
+                volatility=0, arrival_floor=0, arrival_rate=0, arbitrage_coefficient=0)
+    assert c.submission_namespace().background_liquidity == background
+    env = create_environment(c, 42)
+    state, _ = env.reset()
+    np.testing.assert_array_equal(state["liquidity_array"], background)
+    np.testing.assert_array_equal(state["portfolio_value"], c.initial_wealth)
+    np.testing.assert_array_equal(state["lp_token0_amount"], 0)
+    np.testing.assert_array_equal(state["lp_liquidity"], 0)
+    state, *_ = env.step(np.tile([-50, 50, -1], (n, 1)))
+    assert np.all(np.any(state["liquidity_array"] > background, axis=1))
+    state, _ = env.reset()
+    np.testing.assert_array_equal(state["liquidity_array"], background)
+    np.testing.assert_array_equal(state["portfolio_value"], c.initial_wealth)
+    np.testing.assert_array_equal(state["lp_liquidity"], 0)
+
+
+@pytest.mark.parametrize("background", [-1, np.nan, np.inf, -np.inf, [30_000], "invalid"])
+def test_invalid_background_liquidity(config, background):
+    with pytest.raises(ValueError, match="background_liquidity"):
+        create_environment(replace(config, background_liquidity=background), 42)
 
 
 @pytest.mark.parametrize("n", [1, 3])
@@ -46,7 +80,7 @@ def test_reproducibility_and_observation_isolation(config, n):
 
 def test_free_deployment_then_gas_and_exhaustion(config):
     c = replace(config, volatility=0, arrival_floor=0, arrival_rate=0,
-                arbitrage_coefficient=0, inventory_phi=0)
+                arbitrage_coefficient=0)
     env = create_environment(c, 42)
     env.reset()
     action = np.tile([-50, 50, -1], (3, 1))
@@ -72,7 +106,7 @@ def test_template_and_multiseed(config):
     agent = load_agent(Path(__file__).parents[1] / "submission_template.py")
     result = evaluate_agent(agent, config, [42, 43])
     assert result["num_paths"] == 6
-    assert result["score"] <= result["mean_pnl"]
+    assert result["score"] == pytest.approx(result["mean_pnl"], abs=1e-10)
     assert result["pnl_pct"] == pytest.approx(result["mean_pnl"] / 10)
 
 

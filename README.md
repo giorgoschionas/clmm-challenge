@@ -63,12 +63,15 @@ The observation contains copied arrays of shape `(num_trajectories,)`:
 | `gas_cost` | Rebalance cost |
 | `portfolio_value` | Wealth marked at the external reference price |
 | `active_liquidity` | Liquidity at the current pool interval |
-| `lp_token0_amount` | Token0 inventory in the LP position, used in scoring |
+| `lp_token0_amount` | Token0 inventory in the LP position |
 | `lp_alpha` | LP token0 value fraction |
 
 ## Fixed v1 market and scoring
 
-Local practice and hosted evaluation use the following fixed market parameters.
+Local practice and the hosted engine use the following fixed market parameters,
+matching the nominal market in SAiFE_gym's `experiments/train_robust_lp_agent.py`.
+Volatility and baseline arrival rate stay fixed throughout evaluation. The
+challenge uses plain PnL as its reward.
 
 | Parameter | Value |
 |---|---|
@@ -78,23 +81,32 @@ Local practice and hosted evaluation use the following fixed market parameters.
 | Arrival coefficients per side | Floor 10, baseline 300, liquidity 0, arbitrage 4,000 |
 | Liquidity kernel | Beta 0.5, window 10, normalization 1,000,000 |
 | Price impact | Liquidity-depth; fixed gross trade notional 250 token1 |
-| Depth window / minimum depth | 10 / 1e-12 |
-| Ticks / spacing / background liquidity | 7,000 / 1.0001 / 100,000 per tick |
+| Depth window / minimum depth | 15 / 1e-12 |
+| Ticks / spacing / background liquidity | 7,000 / 1.0001 / 30,000 per tick interval |
 | LP offset limit | ±50 ticks |
 | Pool fee | 0.003 |
 | Gas / additional rebalance swap fee | 2 / 0 |
-| Inventory penalty | Coefficient 0.4, exponent 2, terminal penalty 0 |
+| Reward | Change in portfolio value (PnL); no inventory penalty |
+
+Background liquidity is uniform across the tracked intervals, separate from the
+agent's capital, and restored on reset. It is measured in Uniswap-style liquidity
+units, not token1 cash. The agent starts each path with 1,000 token1 in cash and
+adds its own liquidity inside its chosen range when it deploys. The public
+`config.background_liquidity` reports the background amount.
 
 The simulator uses an Euler midprice update, exact Poisson probability
 `1-exp(-intensity*dt)` with at most one arrival per side per step, directional
 liquidity-depth impact with stochastic tick rounding, and fee allocation.
+Trades consume interval capacities in execution order; the depth window controls
+how many intervals are inspected at once, rather than capping the tick movement.
 The first deployment is free; subsequent rebalances pay gas. Never deploying
 keeps cash and has zero reward.
 
-Each step's reward is `V_next - V_current - 0.4 * dt * token0_inventory_next**2`.
-The **score** is the mean cumulative reward over all paths and seeds; higher
-is better. **Raw PnL** is final wealth minus initial wealth and is displayed
-separately. Fees and costs already enter wealth; do not deduct them twice.
+Each step's reward is `V_next - V_current`. Cumulative reward is therefore final
+wealth minus initial wealth. The **score** is mean PnL in token1 over all paths
+and seeds; higher is better. **PnL percentage** is `100 * score / initial_wealth`.
+Fees and costs already enter wealth; do not deduct them twice. There is no
+running or terminal inventory penalty.
 The best valid submission per participant is ranked on the hosted leaderboard.
 
 Hosted live scoring uses at least **3 private seeds (300 paths)**. After closing,
@@ -121,7 +133,17 @@ debug your strategy.
 ## License and provenance
 
 This simulator is derived from SAiFE_gym. [UPSTREAM.json](UPSTREAM.json) records
-the upstream revision and source-file hashes.
+the original extraction and the later nominal-configuration/PnL update, with
+upstream revisions and source-file hashes. To check full state/reward parity
+and the market defaults against that upstream checkout, run:
+
+```bash
+SAIFE_UPSTREAM_PATH=/path/to/SAiFE_gym .venv/bin/python -m pytest
+```
+
+Hosted suites freeze both source and configuration fingerprints. This update
+changes that fingerprint; previously registered suites and historical scores
+belong to the earlier configuration and must not be mixed with this one.
 
 Original contributions retain MIT terms; inherited mbt_gym portions retain
 BSD-3-Clause terms. See [LICENSE](LICENSE) and
