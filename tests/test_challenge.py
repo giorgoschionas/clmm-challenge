@@ -14,6 +14,25 @@ def config():
     return ScenarioConfig(num_trajectories=3, n_steps=20, terminal_time=0.02, num_ticks=200)
 
 
+def test_default_resolution_reaches_terminal_horizon():
+    c = replace(ScenarioConfig(), num_trajectories=1, num_ticks=200)
+    assert c.n_steps == 10_000
+    assert c.terminal_time == 1.0
+    assert c.step_size == pytest.approx(0.0001)
+    env = create_environment(c, 42)
+    assert env.model_dynamics.midprice_model.step_size == c.step_size
+    assert env.model_dynamics.arrival_model.step_size == c.step_size
+    state, _ = env.reset()
+    action = np.array([[-50., 50., 1.]])
+    for step in range(c.n_steps):
+        state, reward, terminated, truncated, _ = env.step(action)
+        assert bool(terminated.all()) == (step == c.n_steps - 1)
+        assert not truncated.any()
+        np.testing.assert_array_equal(reward, 0)
+    np.testing.assert_allclose(state["time"], c.terminal_time, rtol=0, atol=1e-12)
+    np.testing.assert_array_equal(state["portfolio_value"], c.initial_wealth)
+
+
 @pytest.mark.parametrize("n", [1, 3])
 def test_cash_and_pnl_reward(config, n):
     c = replace(config, num_trajectories=n)

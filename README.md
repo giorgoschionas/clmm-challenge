@@ -69,13 +69,15 @@ The observation contains copied arrays of shape `(num_trajectories,)`:
 ## Fixed v1 market and scoring
 
 Local practice and the hosted engine use the following fixed market parameters,
-matching the nominal market in SAiFE_gym's `experiments/train_robust_lp_agent.py`.
+based on the nominal market in SAiFE_gym's `experiments/train_robust_lp_agent.py`.
+The challenge uses a finer 10,000-step resolution over the same horizon of 1.0,
+so each step advances time by 0.0001.
 Volatility and baseline arrival rate stay fixed throughout evaluation. The
 challenge uses plain PnL as its reward.
 
 | Parameter | Value |
 |---|---|
-| Paths / steps / horizon | 100 / 1,000 / 1.0 |
+| Paths / steps / horizon | 100 / 10,000 / 1.0 |
 | Initial price / wealth | 100 / 1,000 token1 |
 | Midprice | Geometric Brownian model; drift 0, volatility 0.03 |
 | Arrival coefficients per side | Floor 10, baseline 300, liquidity 0, arbitrage 4,000 |
@@ -134,8 +136,9 @@ debug your strategy.
 
 This simulator is derived from SAiFE_gym. [UPSTREAM.json](UPSTREAM.json) records
 the original extraction and the later nominal-configuration/PnL update, with
-upstream revisions and source-file hashes. To check full state/reward parity
-and the market defaults against that upstream checkout, run:
+upstream revisions, source-file hashes, and challenge-specific overrides. To
+check full state/reward parity and the shared market defaults against that
+upstream checkout, run:
 
 ```bash
 SAIFE_UPSTREAM_PATH=/path/to/SAiFE_gym .venv/bin/python -m pytest

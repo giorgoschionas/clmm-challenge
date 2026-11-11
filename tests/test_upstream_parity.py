@@ -26,7 +26,9 @@ def test_full_state_and_reward_parity(monkeypatch, n, seed):
         "UniswapV3FeeAccounting": "stochastic_processes.fee_accounting_models",
         "PnL": "rewards.RewardFunctions",
     }
-    config = challenge.ScenarioConfig(num_trajectories=n, n_steps=30, terminal_time=0.03, num_ticks=200)
+    config = challenge.ScenarioConfig(num_trajectories=n, n_steps=30,
+                                      terminal_time=30 * challenge.ScenarioConfig().step_size,
+                                      num_ticks=200)
     extracted = challenge.create_environment(config, seed)
     with monkeypatch.context() as patch:
         for cls, module in sources.items():
@@ -78,7 +80,9 @@ def test_nominal_market_defaults_match_upstream_trainer():
     }
     c = challenge.ScenarioConfig()
     for field, flag in {
-        "terminal_time": "--terminal-time", "n_steps": "--n-steps",
+        # Step count is a challenge-specific resolution override; the horizon
+        # and stochastic market parameters still match the nominal trainer.
+        "terminal_time": "--terminal-time",
         "num_trajectories": "--num-trajectories", "initial_wealth": "--initial-wealth",
         "background_liquidity": "--background-liquidity", "tau": "--tau",
         "volatility": "--nominal-sigma", "arrival_rate": "--nominal-arrival-rate",

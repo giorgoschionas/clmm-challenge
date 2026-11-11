@@ -53,6 +53,9 @@
       "sha256": "e3d2bd0397ca761e61b9c9373dce0760ef8af6bd261d85e64d947a547fcc2559"
     }
   },
+  "challenge_overrides": {
+    "n_steps": 10000
+  },
   "updates": [
     {
       "commit": "2d96ddbcba98e818c39dfacd30713d54fe4bbf63",
