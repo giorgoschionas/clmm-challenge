@@ -72,6 +72,8 @@ Local practice and the hosted engine use the following fixed market parameters,
 based on the nominal market in SAiFE_gym's `experiments/train_robust_lp_agent.py`.
 The challenge uses a finer 10,000-step resolution over the same horizon of 1.0,
 so each step advances time by 0.0001.
+The tracked liquidity grid contains 2,500 tick intervals, centered on the initial
+pool tick, to reduce the arrays processed each step.
 Volatility and baseline arrival rate stay fixed throughout evaluation. The
 challenge uses plain PnL as its reward.
 
@@ -84,7 +86,7 @@ challenge uses plain PnL as its reward.
 | Liquidity kernel | Beta 0.5, window 10, normalization 1,000,000 |
 | Price impact | Liquidity-depth; fixed gross trade notional 250 token1 |
 | Depth window / minimum depth | 15 / 1e-12 |
-| Ticks / spacing / background liquidity | 7,000 / 1.0001 / 30,000 per tick interval |
+| Ticks / spacing / background liquidity | 2,500 / 1.0001 / 30,000 per tick interval |
 | LP offset limit | ±50 ticks |
 | Pool fee | 0.003 |
 | Gas / additional rebalance swap fee | 2 / 0 |

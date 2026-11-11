@@ -80,8 +80,8 @@ def test_nominal_market_defaults_match_upstream_trainer():
     }
     c = challenge.ScenarioConfig()
     for field, flag in {
-        # Step count is a challenge-specific resolution override; the horizon
-        # and stochastic market parameters still match the nominal trainer.
+        # Step count and tick-grid size are challenge-specific overrides; the
+        # horizon and stochastic parameters still match the nominal trainer.
         "terminal_time": "--terminal-time",
         "num_trajectories": "--num-trajectories", "initial_wealth": "--initial-wealth",
         "background_liquidity": "--background-liquidity", "tau": "--tau",
@@ -98,5 +98,5 @@ def test_nominal_market_defaults_match_upstream_trainer():
         assert getattr(c, field) == ast.literal_eval(default), field
 
     for field, name in {"terminal_time": "TERMINAL_TIME", "initial_price": "INITIAL_PRICE",
-                        "fee_tier": "FEE_TIER", "num_ticks": "NUM_TICKS"}.items():
+                        "fee_tier": "FEE_TIER"}.items():
         assert getattr(c, field) == ast.literal_eval(constants[name]), field

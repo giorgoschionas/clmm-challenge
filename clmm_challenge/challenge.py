@@ -31,7 +31,7 @@ class ScenarioConfig:
     background_liquidity: float = 30_000.0
     initial_price: float = 100.0
     tau: int = 50
-    num_ticks: int = 7000
+    num_ticks: int = 2500
     exponential_value: float = 1.0001
     drift: float = 0.0
     volatility: float = 0.03
