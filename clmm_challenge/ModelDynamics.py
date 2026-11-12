@@ -224,7 +224,7 @@ class UniswapV3ModelDynamics(ModelDynamics):
         )
         return sqrt_p_lower, sqrt_p_upper
 
-    def _compute_gross_lp_fees(self, state: dict = None):
+    def _compute_gross_lp_fees(self, state: dict = None, *, include_shares: bool = True):
         """
         Compute LP's gross share of pool fees (read-only, does not modify state).
 
@@ -232,7 +232,8 @@ class UniswapV3ModelDynamics(ModelDynamics):
             (gross_fee0, gross_fee1, lp_share_in_range):
                 gross_fee0: shape (num_trajectories,)
                 gross_fee1: shape (num_trajectories,)
-                lp_share_in_range: shape (num_trajectories, num_ticks) — for pool subtraction
+                lp_share_in_range: shape (num_trajectories, num_ticks), or None
+                    when include_shares=False (no pool subtraction needed)
         """
         state = self._state_or_current(state)
         lp_liq = state[LP_LIQUIDITY_KEY]
@@ -240,24 +241,39 @@ class UniswapV3ModelDynamics(ModelDynamics):
         lp_upper = state[LP_TICK_UPPER_KEY].astype(np.int64)
         pool_liq = state[POOL_LIQUIDITY_ARRAY_KEY]
 
-        tick_indices = np.arange(self.num_ticks)
-        absolute_ticks = self.tick_lower_global + tick_indices
+        # Gather only the position's intersection with the tracked grid. Bounds
+        # can extend outside it; never wrap negative indices or double-count a
+        # clipped end tick. Official positions span at most 2*tau intervals.
+        starts = np.clip(lp_lower - self.tick_lower_global, 0, self.num_ticks)
+        stops = np.clip(lp_upper - self.tick_lower_global, 0, self.num_ticks)
+        widths = np.maximum(stops - starts, 0)
+        offsets = np.arange(widths.max(initial=0))
+        rows, offset_columns = np.nonzero(offsets[None, :] < widths[:, None])
+        columns = starts[rows] + offset_columns
+        liquidity = pool_liq[rows, columns]
+        shares = np.zeros(len(rows), dtype=np.float64)
+        np.divide(lp_liq[rows], liquidity, out=shares, where=liquidity > 0)
 
-        in_range = (absolute_ticks[None, :] >= lp_lower[:, None]) & \
-                   (absolute_ticks[None, :] < lp_upper[:, None])
+        # Keep the original full-width reduction tree. Summing a compact range
+        # instead changes floating-point rounding and can change later actions.
+        # Only the gathered intervals need division and fee multiplication.
+        weighted = np.zeros_like(pool_liq)
+        weighted[rows, columns] = state[FEES0_KEY][rows, columns] * shares
+        gross_fee0 = np.sum(weighted, axis=1)
+        weighted[rows, columns] = state[FEES1_KEY][rows, columns] * shares
+        gross_fee1 = np.sum(weighted, axis=1)
 
-        total_liq_safe = np.where(pool_liq > 0, pool_liq, 1.0)
-        lp_share = np.where(pool_liq > 0, lp_liq[:, None] / total_liq_safe, 0.0)
-        lp_share_in_range = lp_share * in_range
-
-        gross_fee0 = np.sum(state[FEES0_KEY] * lp_share_in_range, axis=1)
-        gross_fee1 = np.sum(state[FEES1_KEY] * lp_share_in_range, axis=1)
+        lp_share_in_range = None
+        if include_shares:
+            lp_share_in_range = np.zeros_like(pool_liq)
+            lp_share_in_range[rows, columns] = shares
 
         return gross_fee0, gross_fee1, lp_share_in_range
 
     def _claimable_lp_fees(self, state: dict = None, include_gross: bool = False):
         state = self._state_or_current(state)
-        gross0, gross1, lp_share_in_range = self._compute_gross_lp_fees(state)
+        gross0, gross1, lp_share_in_range = self._compute_gross_lp_fees(
+            state, include_shares=include_gross)
         claimable0 = np.maximum(gross0 - state[LP_FEE_SNAPSHOT0_KEY], 0.0)
         claimable1 = np.maximum(gross1 - state[LP_FEE_SNAPSHOT1_KEY], 0.0)
         if include_gross:
@@ -295,7 +311,7 @@ class UniswapV3ModelDynamics(ModelDynamics):
         token0_amount = np.where(above, 0.0, np.where(below, x_below, x_in))
         return np.where(has_position, token0_amount, 0.0)
 
-    def compute_portfolio_value(self, state: dict = None) -> np.ndarray:
+    def compute_portfolio_value(self, state: dict = None, *, unclaimed_fees=None) -> np.ndarray:
         """Return LP mark-to-market wealth including currently unclaimed fees."""
         state = self._state_or_current(state)
         lp_liq = state[LP_LIQUIDITY_KEY]
@@ -309,7 +325,9 @@ class UniswapV3ModelDynamics(ModelDynamics):
             sqrt_p_lower,
             sqrt_p_upper,
         )
-        unclaimed0, unclaimed1 = self.compute_unclaimed_fees(state)
+        if unclaimed_fees is None:
+            unclaimed_fees = self.compute_unclaimed_fees(state)
+        unclaimed0, unclaimed1 = unclaimed_fees
         unclaimed_value = unclaimed0 * state[ASSET_PRICE_KEY] + unclaimed1
         no_pos_value = np.where(
             state[LP_EVER_DEPLOYED_KEY], 0.0, state[INITIAL_WEALTH_KEY]
@@ -509,7 +527,7 @@ class UniswapV3ModelDynamics(ModelDynamics):
         self.state[LP_EVER_DEPLOYED_KEY] |= (new_L > 0)
 
         # --- Phase 4: Snapshot pre-existing fees in new range ---
-        snapshot0, snapshot1, _ = self._compute_gross_lp_fees()
+        snapshot0, snapshot1, _ = self._compute_gross_lp_fees(include_shares=False)
         self.state[LP_FEE_SNAPSHOT0_KEY] = snapshot0
         self.state[LP_FEE_SNAPSHOT1_KEY] = snapshot1
 

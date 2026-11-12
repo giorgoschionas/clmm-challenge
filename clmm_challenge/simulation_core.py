@@ -43,13 +43,19 @@ def validate_background_liquidity(value: float) -> float:
     return float(value)
 
 
-def compute_derived_obs(state: dict, model_dynamics: ModelDynamics) -> None:
-    """Compute derived LP observation keys in-place on ``state``."""
+def compute_derived_obs(state: dict, model_dynamics: ModelDynamics, *, unclaimed_fees=None) -> None:
+    """Refresh observations, optionally reusing fees just accrued in this step.
+
+    No persistent cache: reset and explicit refreshes still recompute fees.
+    """
     state[POOL_SQRT_PRICE_KEY] = model_dynamics.get_pool_sqrt_price(state)
-    unclaimed0, unclaimed1 = model_dynamics.compute_unclaimed_fees(state)
+    if unclaimed_fees is None:
+        unclaimed_fees = model_dynamics.compute_unclaimed_fees(state)
+    unclaimed0, unclaimed1 = unclaimed_fees
     state[LP_UNCLAIMED_FEES0_KEY] = unclaimed0
     state[LP_UNCLAIMED_FEES1_KEY] = unclaimed1
-    state[PORTFOLIO_VALUE_KEY] = model_dynamics.compute_portfolio_value(state)
+    state[PORTFOLIO_VALUE_KEY] = model_dynamics.compute_portfolio_value(
+        state, unclaimed_fees=unclaimed_fees)
     state[LP_ALPHA_KEY] = model_dynamics.compute_lp_alpha(state)
     state[LP_TOKEN0_AMOUNT_KEY] = model_dynamics.compute_lp_token0_amount(state)
 

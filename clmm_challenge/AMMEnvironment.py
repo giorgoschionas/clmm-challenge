@@ -2,7 +2,7 @@ import gymnasium
 import numpy as np
 from gymnasium.vector.utils import batch_space
 from clmm_challenge.ModelDynamics import ModelDynamics, UniswapV3ModelDynamics
-from clmm_challenge.rewards import RewardFunction
+from clmm_challenge.rewards import PnL, RewardFunction
 from clmm_challenge.index_names import (
     POOL_SQRT_PRICE_KEY, POOL_CURRENT_TICK_KEY, POOL_LIQUIDITY_ARRAY_KEY,
     FEES0_KEY, FEES1_KEY, LP_LIQUIDITY_KEY, LP_TICK_LOWER_KEY, LP_TICK_UPPER_KEY,
@@ -209,7 +209,13 @@ class AMMEnvironment(gymnasium.Env):
                     f"expected batched action shape ({self.num_trajectories}, 3) "
                     f"(or legacy ({self.num_trajectories}, 2)), got {action.shape}"
                 )
-        current_state = {k: v.copy() for k, v in self.model_dynamics.state.items()}
+        # The built-in PnL only reads previous wealth. Preserve the full snapshot
+        # contract for custom rewards, including subclasses that override PnL.
+        if type(self.reward_function) is PnL:
+            current_state = {PORTFOLIO_VALUE_KEY:
+                             self.model_dynamics.state[PORTFOLIO_VALUE_KEY].copy()}
+        else:
+            current_state = {k: v.copy() for k, v in self.model_dynamics.state.items()}
 
         # Update state
         next_state = self._update_state(action)
@@ -224,9 +230,10 @@ class AMMEnvironment(gymnasium.Env):
         info = self._calculate_infos(next_state, action, rewards)
         return next_state, rewards, terminated, truncated, info
 
-    def _compute_derived_obs(self):
+    def _compute_derived_obs(self, *, unclaimed_fees=None):
         """Compute portfolio_value, lp_alpha, and lp_token0_amount, store in state dict."""
-        compute_derived_obs(self.model_dynamics.state, self.model_dynamics)
+        compute_derived_obs(self.model_dynamics.state, self.model_dynamics,
+                            unclaimed_fees=unclaimed_fees)
 
     def _update_state(self, action: np.ndarray):
         # Step 1: Get arrivals from current model state (intensity at t)
@@ -240,7 +247,12 @@ class AMMEnvironment(gymnasium.Env):
         self.model_dynamics.state[TIME_KEY] += self.step_size
 
         # Step 4: Update derived observation features
-        self._compute_derived_obs()
+        # update_state already accrued fees after the swaps. Advancing the
+        # midprice, arrival intensity and time above changes no fee inputs.
+        self._compute_derived_obs(unclaimed_fees=(
+            self.model_dynamics.state[LP_UNCLAIMED_FEES0_KEY],
+            self.model_dynamics.state[LP_UNCLAIMED_FEES1_KEY],
+        ))
 
         return self.model_dynamics.state
 
