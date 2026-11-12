@@ -50,7 +50,7 @@ after costs. Holding before the first deployment keeps the initial capital in
 token1 cash. There is no separate withdrawal-to-cash action: once deployed,
 holding keeps the existing position and rebalancing replaces it.
 
-The observation contains copied arrays of shape `(num_trajectories,)`:
+The observation contains only the following copied arrays, each of shape `(num_trajectories,)`:
 
 | Field | Meaning |
 |---|---|
@@ -62,9 +62,7 @@ The observation contains copied arrays of shape `(num_trajectories,)`:
 | `lp_ever_deployed` | Whether liquidity has previously been deployed |
 | `gas_cost` | Rebalance cost |
 | `portfolio_value` | Wealth marked at the external reference price |
-| `active_liquidity` | Liquidity at the current pool interval |
-| `lp_token0_amount` | Token0 inventory in the LP position |
-| `lp_alpha` | LP token0 value fraction |
+| `lp_token0_amount` | Token0 units in the LP position, excluding unclaimed fees |
 
 ## Fixed v1 market and scoring
 

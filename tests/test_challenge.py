@@ -90,11 +90,13 @@ def test_reproducibility_and_observation_isolation(config, n):
     np.testing.assert_array_equal(first, second)
     state, _ = env.reset(seed=5)
     obs = official_observation(state, env)
-    assert len(obs) == 12
+    assert len(obs) == 10
     assert all(v.shape == (n,) for v in obs.values())
+    np.testing.assert_array_equal(obs["lp_token0_amount"], state["lp_token0_amount"])
     obs["portfolio_value"][:] = -1
     assert np.all(state["portfolio_value"] == c.initial_wealth)
-    assert not {"seed", "rng", "liquidity_array", "fees_0", "fees_1"} & obs.keys()
+    assert not {"seed", "rng", "liquidity_array", "fees_0", "fees_1",
+                "lp_alpha", "active_liquidity"} & obs.keys()
 
 
 def test_free_deployment_then_gas_and_exhaustion(config):

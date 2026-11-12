@@ -17,7 +17,7 @@ PRACTICE_SEEDS = (42, 314, 2718)
 OBSERVATION_KEYS = (
     "sqrt_price", "current_tick", "midprice", "time", "lp_tick_lower",
     "lp_tick_upper", "lp_ever_deployed", "gas_cost", "portfolio_value",
-    "lp_token0_amount", "lp_alpha",
+    "lp_token0_amount",
 )
 
 
@@ -93,11 +93,8 @@ def create_environment(config: ScenarioConfig, seed: int) -> AMMEnvironment:
 
 
 def official_observation(state: dict, env: AMMEnvironment) -> dict:
-    observation = {key: np.asarray(state[key]).copy() for key in OBSERVATION_KEYS}
-    md = env.model_dynamics
-    tick = np.clip(state["current_tick"] - md.tick_lower_global, 0, md.num_ticks - 1)
-    observation["active_liquidity"] = state["liquidity_array"][np.arange(env.num_trajectories), tick].copy()
-    return observation
+    """Return copied public fields for local and hosted agent evaluation."""
+    return {key: np.asarray(state[key]).copy() for key in OBSERVATION_KEYS}
 
 
 def validate_action(action, num_trajectories: int):
