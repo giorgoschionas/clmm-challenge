@@ -13,7 +13,7 @@ def main():
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
     names = ["README.md", "LICENSE", "THIRD_PARTY_NOTICES.md", "UPSTREAM.json",
-             "pyproject.toml", "MANIFEST.in", "requirements.txt", "submission_template.py"]
+             "pyproject.toml", "MANIFEST.in", "requirements.txt"]
     sources = [ROOT / name for name in names]
     sources += sorted((ROOT / "clmm_challenge").glob("*.py"))
     sources += sorted((ROOT / "examples").glob("*.py"))
@@ -24,8 +24,8 @@ def main():
             info.compress_type = ZIP_DEFLATED
             info.external_attr = 0o644 << 16
             archive.writestr(info, path.read_bytes())
-    for name in ("README.md", "submission_template.py"):
-        shutil.copyfile(ROOT / name, args.output / name)
+    shutil.copyfile(ROOT / "README.md", args.output / "README.md")
+    shutil.copyfile(ROOT / "examples" / "submission_template.py", args.output / "submission_template.py")
 
 
 if __name__ == "__main__":

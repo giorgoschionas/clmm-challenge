@@ -11,7 +11,7 @@ Requires Python 3.11 or newer. Installation includes NumPy and Gymnasium.
 ```bash
 python3 -m venv .venv
 .venv/bin/python -m pip install -e .
-cp submission_template.py my_agent.py
+cp examples/submission_template.py my_agent.py
 .venv/bin/python -m clmm_challenge.evaluate --agent my_agent.py
 ```
 

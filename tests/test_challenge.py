@@ -124,7 +124,7 @@ def test_bad_actions(action):
 
 
 def test_template_and_multiseed(config):
-    agent = load_agent(Path(__file__).parents[1] / "submission_template.py")
+    agent = load_agent(Path(__file__).parents[1] / "examples" / "submission_template.py")
     result = evaluate_agent(agent, config, [42, 43])
     assert result["num_paths"] == 6
     assert result["score"] == pytest.approx(result["mean_pnl"], abs=1e-10)
