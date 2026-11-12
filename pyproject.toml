@@ -19,7 +19,7 @@ dev = ["pytest>=8,<9"]
 license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md"]
 
 [tool.setuptools.packages.find]
-include = ["clmm_challenge*"]
+include = ["clmm_challenge*", "examples*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

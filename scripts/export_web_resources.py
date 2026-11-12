@@ -16,6 +16,7 @@ def main():
              "pyproject.toml", "MANIFEST.in", "requirements.txt", "submission_template.py"]
     sources = [ROOT / name for name in names]
     sources += sorted((ROOT / "clmm_challenge").glob("*.py"))
+    sources += sorted((ROOT / "examples").glob("*.py"))
     sources += sorted((ROOT / "tests").glob("*.py"))
     with ZipFile(args.output / "clmm-challenge.zip", "w", compression=ZIP_DEFLATED) as archive:
         for path in sources:

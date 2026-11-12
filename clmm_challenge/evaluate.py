@@ -10,7 +10,7 @@ import types
 
 import numpy as np
 
-from .baselines import CashAgent, DeployOnceAgent, PeriodicAgent
+from examples.baselines import CashAgent, DeployOnceAgent, PeriodicAgent
 from .challenge import PRACTICE_SEEDS, ScenarioConfig, create_environment, official_observation, validate_action
 from .contract import MAX_CODE_BYTES
 from .validation import structural_check, _select_entry_class

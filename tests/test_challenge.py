@@ -5,7 +5,7 @@ import numpy as np
 import pytest
 
 from clmm_challenge.challenge import ScenarioConfig, create_environment, official_observation, validate_action
-from clmm_challenge.baselines import CashAgent, DeployOnceAgent
+from examples.baselines import CashAgent, DeployOnceAgent
 from clmm_challenge.evaluate import evaluate_agent, load_agent, run_episode
 
 

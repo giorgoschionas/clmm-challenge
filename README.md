@@ -22,6 +22,11 @@ and `--no-baselines` to omit the reference policies. CSV output defaults to
 machine, so run only code you trust. Hosted submissions run in an isolated
 sandbox.
 
+Reference policies live in [examples/baselines.py](examples/baselines.py):
+`CashAgent` stays in cash, `DeployOnceAgent` deploys once and holds, and
+`PeriodicAgent` rebalances every 100 steps. The evaluator includes all three
+by default.
+
 ## Agent interface
 
 Submit one Python file, at most 64 KiB, defining `Agent.__init__(self, config)`
