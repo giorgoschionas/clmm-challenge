@@ -18,7 +18,7 @@
       "source": "SAiFE_gym/gym/index_names.py",
       "sha256": "46f5ed6f0df3fbdfe432161ded7b47f939b7c8105ef747b35faa5966d75392c0"
     },
-    "helpers.py": {
+    "amm_math.py": {
       "source": "SAiFE_gym/gym/helpers/AMM_utils.py",
       "sha256": "f6a2c702af21a36010cdfa26db3caf5de04e912d49f8a6c0bccebcea761cbdb8"
     },

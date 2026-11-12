@@ -1,15 +1,11 @@
-import numpy as np
-import math
+"""Price-to-tick conversion and concentrated-liquidity position valuation."""
 
-# ============================================================================
-# Uniswap V3 Concentrated Liquidity Functions
-# ============================================================================
+import numpy as np
+
 
 def price_to_tick(price: float) -> int:
     """Convert price to tick index"""
     return int(np.floor(np.log(price) / np.log(1.0001)))
-
-
 
 
 def get_position_value_vec(L, external_p_current, sqrt_p_current, sqrt_p_lower, sqrt_p_upper):
@@ -33,7 +29,6 @@ def get_position_value_vec(L, external_p_current, sqrt_p_current, sqrt_p_lower, 
     sqrt_p_lower = np.atleast_1d(np.asarray(sqrt_p_lower, dtype=np.float64))
     sqrt_p_upper = np.atleast_1d(np.asarray(sqrt_p_upper, dtype=np.float64))
 
-
     above = sqrt_p_current >= sqrt_p_upper
     below = sqrt_p_current <= sqrt_p_lower
 
@@ -45,16 +40,3 @@ def get_position_value_vec(L, external_p_current, sqrt_p_current, sqrt_p_lower, 
     v_in = L * (external_p_current / sqrt_p_current + sqrt_p_current - sqrt_p_lower - external_p_current / sqrt_p_upper)
 
     return np.where(above, v_above, np.where(below, v_below, v_in))
-
-
-
-
-# Functions for collecting fees
-# delta change of amount of Token A
-# def delta_x(p1, p2):
-#     return 1 / math.sqrt(p2) - 1 / math.sqrt(p1)
-
-
-# # delta change of amount of Token B
-# def delta_y(p1, p2):
-#     return math.sqrt(p2) - math.sqrt(p1)

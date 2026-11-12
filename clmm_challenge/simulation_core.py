@@ -1,7 +1,7 @@
 import numpy as np
 
 from clmm_challenge.ModelDynamics import ModelDynamics
-from clmm_challenge.helpers import price_to_tick
+from clmm_challenge.amm_math import price_to_tick
 from clmm_challenge.index_names import (
     ASSET_PRICE_KEY,
     FEES0_KEY,

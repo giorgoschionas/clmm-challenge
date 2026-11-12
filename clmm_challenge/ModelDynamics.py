@@ -14,7 +14,7 @@ from clmm_challenge.index_names import (
     LP_FEE_SNAPSHOT0_KEY, LP_FEE_SNAPSHOT1_KEY,
     LP_EVER_DEPLOYED_KEY, INITIAL_WEALTH_KEY, GAS_COST_KEY,
 )
-from clmm_challenge.helpers import get_position_value_vec
+from clmm_challenge.amm_math import get_position_value_vec
 from clmm_challenge.arrivals import ArrivalModel
 from clmm_challenge.fees import FeeAccountingModel, UniswapV3FeeAccounting
 from clmm_challenge.midprice import MidpriceModel
