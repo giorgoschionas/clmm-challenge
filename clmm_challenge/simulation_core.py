@@ -46,7 +46,7 @@ def validate_background_liquidity(value: float) -> float:
 def compute_derived_obs(state: dict, model_dynamics: ModelDynamics, *, unclaimed_fees=None) -> None:
     """Refresh observations, optionally reusing fees just accrued in this step.
 
-    No persistent cache: reset and explicit refreshes still recompute fees.
+    Explicit refreshes recompute fees; normal steps reuse the amounts just accrued.
     """
     state[POOL_SQRT_PRICE_KEY] = model_dynamics.get_pool_sqrt_price(state)
     if unclaimed_fees is None:
@@ -139,6 +139,7 @@ def reset_model_state(
 ) -> None:
     model_dynamics.state = {k: v.copy() for k, v in initial_state.items()}
     model_dynamics.last_arrivals = np.zeros((num_trajectories, 2), dtype=bool)
+    model_dynamics._fee_cache = None
 
 
 def advance_market_state(

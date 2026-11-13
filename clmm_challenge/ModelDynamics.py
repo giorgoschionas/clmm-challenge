@@ -115,6 +115,7 @@ class UniswapV3ModelDynamics(ModelDynamics):
         # Cached arrivals from the most recent get_arrivals() call. Read by diagnostic
         # agents that key off realised order flow. Shape: (num_trajectories, 2) [sell, buy].
         self.last_arrivals = np.zeros((num_trajectories, 2), dtype=bool)
+        self._fee_cache = None
 
     def _build_sqrt_grid(self):
         """Precompute the lattice `AMM[i] = sqrt(r^i)` for every reachable absolute tick.
@@ -224,7 +225,8 @@ class UniswapV3ModelDynamics(ModelDynamics):
         )
         return sqrt_p_lower, sqrt_p_upper
 
-    def _compute_gross_lp_fees(self, state: dict = None, *, include_shares: bool = True):
+    def _compute_gross_lp_fees(self, state: dict = None, *, include_shares: bool = True,
+                               trajectories=None):
         """
         Compute LP's gross share of pool fees (read-only, does not modify state).
 
@@ -240,6 +242,10 @@ class UniswapV3ModelDynamics(ModelDynamics):
         lp_lower = state[LP_TICK_LOWER_KEY].astype(np.int64)
         lp_upper = state[LP_TICK_UPPER_KEY].astype(np.int64)
         pool_liq = state[POOL_LIQUIDITY_ARRAY_KEY]
+        if trajectories is not None:
+            lp_liq = lp_liq[trajectories]
+            lp_lower = lp_lower[trajectories]
+            lp_upper = lp_upper[trajectories]
 
         # Gather only the position's intersection with the tracked grid. Bounds
         # can extend outside it; never wrap negative indices or double-count a
@@ -250,25 +256,80 @@ class UniswapV3ModelDynamics(ModelDynamics):
         offsets = np.arange(widths.max(initial=0))
         rows, offset_columns = np.nonzero(offsets[None, :] < widths[:, None])
         columns = starts[rows] + offset_columns
-        liquidity = pool_liq[rows, columns]
+        source_rows = rows if trajectories is None else trajectories[rows]
+        liquidity = pool_liq[source_rows, columns]
         shares = np.zeros(len(rows), dtype=np.float64)
         np.divide(lp_liq[rows], liquidity, out=shares, where=liquidity > 0)
 
         # Keep the original full-width reduction tree. Summing a compact range
         # instead changes floating-point rounding and can change later actions.
         # Only the gathered intervals need division and fee multiplication.
-        weighted = np.zeros_like(pool_liq)
-        weighted[rows, columns] = state[FEES0_KEY][rows, columns] * shares
+        weighted = (np.zeros_like(pool_liq) if trajectories is None else
+                    np.zeros((len(trajectories), self.num_ticks), dtype=pool_liq.dtype))
+        weighted[rows, columns] = state[FEES0_KEY][source_rows, columns] * shares
         gross_fee0 = np.sum(weighted, axis=1)
-        weighted[rows, columns] = state[FEES1_KEY][rows, columns] * shares
+        weighted[rows, columns] = state[FEES1_KEY][source_rows, columns] * shares
         gross_fee1 = np.sum(weighted, axis=1)
 
         lp_share_in_range = None
         if include_shares:
-            lp_share_in_range = np.zeros_like(pool_liq)
+            lp_share_in_range = np.zeros_like(weighted)
             lp_share_in_range[rows, columns] = shares
 
         return gross_fee0, gross_fee1, lp_share_in_range
+
+    def _cached_claimable_lp_fees(self):
+        """Reuse gross totals only when every relevant input is exactly unchanged.
+
+        Raw state is mutable, including by local callers and custom models. Compare
+        detached inputs within each LP range instead of relying on swap events for
+        cache validity. Only changed rows undergo the original full-width reduction.
+        Entry snapshots are applied afresh, and explicit fee queries stay uncached.
+        """
+        state = self.state
+        pool = state[POOL_LIQUIDITY_ARRAY_KEY]
+        # Subsetting rows must preserve the original contiguous reduction layout.
+        if not pool.flags.c_contiguous or pool.dtype != np.float64:
+            self._fee_cache = None
+            return self._claimable_lp_fees()
+
+        lower = state[LP_TICK_LOWER_KEY].astype(np.int64)
+        upper = state[LP_TICK_UPPER_KEY].astype(np.int64)
+        starts = np.clip(lower - self.tick_lower_global, 0, self.num_ticks)
+        stops = np.clip(upper - self.tick_lower_global, 0, self.num_ticks)
+        widths = np.maximum(stops - starts, 0)
+        offsets = np.arange(widths.max(initial=0))
+        valid = offsets[None, :] < widths[:, None]
+        columns = np.minimum(starts[:, None] + offsets, self.num_ticks - 1)
+        rows = np.arange(len(lower))[:, None]
+        inputs = (
+            state[LP_LIQUIDITY_KEY].copy(), lower, upper,
+            np.where(valid, pool[rows, columns], 0.0),
+            np.where(valid, state[FEES0_KEY][rows, columns], 0.0),
+            np.where(valid, state[FEES1_KEY][rows, columns], 0.0),
+        )
+        layout = (self.tick_lower_global, self.num_ticks, pool.dtype.str,
+                  inputs[3].shape)
+        cached = self._fee_cache
+        if cached is None or cached[0] != layout:
+            changed = np.ones(len(lower), dtype=bool)
+            gross0, gross1 = np.zeros(len(lower)), np.zeros(len(lower))
+        else:
+            _, previous, gross0, gross1 = cached
+            changed = np.zeros(len(lower), dtype=bool)
+            for current, old in zip(inputs, previous):
+                different = current != old
+                changed |= different if different.ndim == 1 else different.any(axis=1)
+            gross0, gross1 = gross0.copy(), gross1.copy()
+
+        trajectories = np.flatnonzero(changed)
+        if trajectories.size:
+            updated0, updated1, _ = self._compute_gross_lp_fees(
+                include_shares=False, trajectories=trajectories)
+            gross0[trajectories], gross1[trajectories] = updated0, updated1
+        self._fee_cache = (layout, inputs, gross0, gross1)
+        return (np.maximum(gross0 - state[LP_FEE_SNAPSHOT0_KEY], 0.0),
+                np.maximum(gross1 - state[LP_FEE_SNAPSHOT1_KEY], 0.0))
 
     def _claimable_lp_fees(self, state: dict = None, include_gross: bool = False):
         state = self._state_or_current(state)
@@ -375,7 +436,7 @@ class UniswapV3ModelDynamics(ModelDynamics):
         Delta is clamped at zero so that a rebalance (which drops unclaimed back to 0)
         does not subtract from the cumulative lifetime counter.
         """
-        new_unclaimed0, new_unclaimed1 = self._claimable_lp_fees()
+        new_unclaimed0, new_unclaimed1 = self._cached_claimable_lp_fees()
         delta0 = new_unclaimed0 - self.state[LP_UNCLAIMED_FEES0_KEY]
         delta1 = new_unclaimed1 - self.state[LP_UNCLAIMED_FEES1_KEY]
         self.state[LP_COLLECTED_FEES0_KEY] += np.maximum(delta0, 0.0)

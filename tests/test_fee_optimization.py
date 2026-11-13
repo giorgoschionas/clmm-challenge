@@ -1,6 +1,7 @@
 """Differential checks against the original dense fee formula."""
 from dataclasses import replace
 from types import MethodType
+from unittest.mock import patch
 
 import numpy as np
 import pytest
@@ -59,6 +60,8 @@ def test_dense_fee_reference_matches_every_state_and_reward(seed):
     actual = create_environment(config, seed)
     reference = create_environment(config, seed)
     reference.model_dynamics._compute_gross_lp_fees = MethodType(dense_fees, reference.model_dynamics)
+    # The oracle recomputes every row on every step, without using the cache.
+    reference.model_dynamics._cached_claimable_lp_fees = reference.model_dynamics._claimable_lp_fees
     actual.reset()
     reference.reset()
     rng = np.random.default_rng(123)
@@ -114,3 +117,98 @@ def test_custom_pnl_subclass_still_receives_a_detached_full_previous_state():
     env.reset()
     state, rewards, *_ = env.step(np.tile([-50, 50, -1], (2, 1)))
     np.testing.assert_array_equal(rewards, state["portfolio_value"] - config.initial_wealth)
+
+
+def fee_fixture():
+    config = replace(ScenarioConfig(), num_trajectories=4, volatility=0,
+                     arrival_floor=0, arrival_rate=0, arbitrage_coefficient=0)
+    env = create_environment(config, 42)
+    env.reset()
+    env.step(np.tile([-50, 50, -1], (4, 1)))
+    return env
+
+
+def assert_fees_match_dense(md):
+    gross0, gross1, _ = dense_fees(md)
+    for token, gross in ((0, gross0), (1, gross1)):
+        expected = np.maximum(gross - md.state[f"lp_fee_snapshot_{token}"], 0.0)
+        np.testing.assert_array_equal(md.state[f"lp_unclaimed_fees_{token}"], expected)
+
+
+def test_unchanged_and_out_of_range_paths_skip_full_width_reduction():
+    env = fee_fixture()
+    md, state = env.model_dynamics, env.state
+    center = int(state["current_tick"][0] - md.tick_lower_global)
+    with patch.object(md, "_compute_gross_lp_fees", wraps=md._compute_gross_lp_fees) as compute:
+        md._accrue_lp_fees()
+        assert compute.call_count == 0
+        state["fees_0"][0, center + 100] += 7.0  # outside the LP range
+        md._accrue_lp_fees()
+        assert compute.call_count == 0
+        state["fees_1"][2, center] += 3.0
+        md._accrue_lp_fees()
+        assert compute.call_count == 1
+        np.testing.assert_array_equal(compute.call_args.kwargs["trajectories"], [2])
+        assert_fees_match_dense(md)
+
+
+@pytest.mark.parametrize("mutation", ["fees", "pool_liquidity", "lp_liquidity", "bounds",
+                                     "snapshots", "unclaimed", "fortran", "float32"])
+def test_cache_detects_external_changes_and_preserves_fee_deltas(mutation):
+    env = fee_fixture()
+    md, state = env.model_dynamics, env.state
+    center = int(state["current_tick"][0] - md.tick_lower_global)
+    state["fees_0"][:, center] = [1e-9, 1.0, 1e9, 0.1]
+    state["fees_1"][:, center + 1] = [0.3, 0.2, 0.1, 0.0]
+    md._accrue_lp_fees()
+    if mutation == "fees":
+        state["fees_0"][0, center] *= 0.5
+        state["fees_1"][1, center] += 3.0
+    elif mutation == "pool_liquidity":
+        state["liquidity_array"][0, center] *= 2
+        state["liquidity_array"][1, center] = 0
+    elif mutation == "lp_liquidity":
+        state["lp_liquidity"][1] *= 0.5
+        state["lp_liquidity"][2] = 0
+    elif mutation == "bounds":
+        state["lp_tick_lower"][0] += 55
+        state["lp_tick_upper"][2] += 100
+        state["lp_tick_lower"][3] = md.tick_lower_global - 10
+        state["lp_tick_upper"][3] = md.tick_lower_global - 1
+    elif mutation == "snapshots":
+        state["lp_fee_snapshot_0"][:] = state["lp_unclaimed_fees_0"] * 0.5
+    elif mutation == "unclaimed":
+        state["lp_unclaimed_fees_0"][:] *= 0.25
+    elif mutation == "fortran":
+        state["liquidity_array"] = np.asfortranarray(state["liquidity_array"])
+    elif mutation == "float32":
+        state["liquidity_array"] = state["liquidity_array"].astype(np.float32)
+
+    # Use the pre-cache implementation as the oracle, also for unusual layouts.
+    expected = md._claimable_lp_fees()
+    previous = [state[f"lp_unclaimed_fees_{t}"].copy() for t in (0, 1)]
+    collected = [state[f"lp_collected_fees_{t}"].copy() for t in (0, 1)]
+    md._accrue_lp_fees()
+    for token in (0, 1):
+        np.testing.assert_array_equal(state[f"lp_unclaimed_fees_{token}"], expected[token])
+        np.testing.assert_array_equal(state[f"lp_collected_fees_{token}"],
+                                      collected[token] + np.maximum(expected[token] - previous[token], 0.0))
+
+
+def test_explicit_fee_queries_and_reset_do_not_reuse_stale_totals():
+    env = fee_fixture()
+    md, state = env.model_dynamics, env.state
+    center = int(state["current_tick"][0] - md.tick_lower_global)
+    other = {key: value.copy() for key, value in state.items()}
+    other["fees_0"][:, center] = 9.0
+    assert np.all(md.compute_unclaimed_fees(other)[0] > 0)
+    md._accrue_lp_fees()
+    assert_fees_match_dense(md)
+    state["fees_1"][:, center] = 5.0
+    md._accrue_lp_fees()
+    assert np.all(state["lp_unclaimed_fees_1"] > 0)
+    env.reset(seed=42)
+    assert md._fee_cache is None
+    env.step(np.tile([-50, 50, 1], (4, 1)))
+    assert_fees_match_dense(md)
+    np.testing.assert_array_equal(env.state["lp_collected_fees_1"], 0.0)

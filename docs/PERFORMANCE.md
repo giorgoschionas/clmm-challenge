@@ -1,5 +1,9 @@
 # Simulator throughput verification
 
+For the subsequent affected-path fee refresh optimization, see
+[FEE_CACHE_PERFORMANCE.md](FEE_CACHE_PERFORMANCE.md). The measurements below
+describe the earlier full-state-copy and fee-arithmetic optimization.
+
 Measured on 2026-11-12 against baseline commit
 `5fc20c3ea823b073d50602094a94003fb6a020a1` using Python 3.12.11,
 NumPy 2.4.6, Linux x86-64, and the project virtualenv. Runs were sequential;
